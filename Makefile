@@ -32,7 +32,7 @@ install:
 	adb shell su -c cp /data/local/tmp/libart_t.so /system/lib/libart.so
 	adb shell su -c mount -o ro,remount /system
 uninstall:
-	adb push libart_ori.so /data/local/tmp/
+	adb push libart.so /data/local/tmp/
 	adb shell su -c mount -o rw,remount /system
-	adb shell su -c cp /data/local/tmp/libart_ori.so /system/lib/libart.so
+	adb shell su -c cp /data/local/tmp/libart.so /system/lib/libart.so
 	adb shell su -c mount -o ro,remount /system
