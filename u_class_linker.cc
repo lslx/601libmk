@@ -2147,8 +2147,8 @@ bool get_dump_path(char *dump_path, const DexFile& dex_file) {
     // mytestxx
 	char pack_name[256]={0};
 	if(get_pack_name(pack_name)) {
-		sprintf(dump_path, "/data/local/tmpx/%s", pack_name);
-		//ALOGD("WTF dump_path=%s",dump_path);
+		sprintf(dump_path, "/data/local/tmp/%s", pack_name);
+		ALOGD("WTF dump_path=%s",dump_path);
 		if(0 != access(dump_path, F_OK)) {
 			int ret=mkdir(dump_path, S_IRWXU|S_IRWXG|S_IRWXO);
 			if(0!=ret){
@@ -2197,7 +2197,8 @@ void write_log(char *dump_path, char *log_info) {
 }
 #include <sys/syscall.h>  
 //#define gettidv1() syscall(__NR_gettid);
-bool bFlag= false;
+bool bFlagv1= true;
+bool bFlagv2= true;
 void dump_class(char* dump_path, const DexFile& dex_file,Handle<mirror::ClassLoader> class_loader,ClassLinker* cl) {
 	char log_info[512]={0};
 	char temp[512]={0};
@@ -2513,22 +2514,15 @@ void dump_class(char* dump_path, const DexFile& dex_file,Handle<mirror::ClassLoa
 }
 
 
-const char targetName[]="cn.com.cnpc.yilutongxing";
 void dumpDex(const DexFile& dex_file,Handle<mirror::ClassLoader> class_loader,ClassLinker* cl) {
 	char dump_path[512]={0};
 	char log_info[512]={0};
 	char temp[512]={0};
 	//char pack_type[64]={0};
 	int fd;
-	//If the process is root user, then return
-	if(getuid() == 0) {
-		return;
-	}
 	
 	char pack_name[100]={0};
 	if(!get_pack_name(pack_name)) 
-		return;
-	if(0!=strcmp(targetName,pack_name))
 		return;
 	
 	mode_t old_mode = umask(0);  //get defaut mask
@@ -2566,7 +2560,9 @@ void dumpDex(const DexFile& dex_file,Handle<mirror::ClassLoader> class_loader,Cl
 	strcat(temp, "DexFile.dex");
 	fd = open(temp, O_RDWR|O_CREAT, S_IRWXU|S_IRWXG|S_IRWXO);
 	if(fd) {
+        LOG(INFO) << "WTF write 01:" << dex_file.Size();
 		write(fd, dex_file.Begin(), dex_file.Size());
+        LOG(INFO) << "WTF write 02:" << dex_file.Size();
 		close(fd);
 	}
 	sprintf(log_info, "Dump DexFile.dex, dex_file baseAddr = 0x%x, dex_file fileSize = 0x%x\n", (int)(size_t)dex_file.Begin(), (int)dex_file.Size());
@@ -2584,8 +2580,8 @@ void dumpDex(const DexFile& dex_file,Handle<mirror::ClassLoader> class_loader,Cl
 		dump_class(dump_path, dex_file,class_loader,cl);
 	}
 	*/
-	//if(bFlag)
-	dump_class(dump_path, dex_file,class_loader,cl);
+	if(bFlagv2)
+        dump_class(dump_path, dex_file,class_loader,cl);
 	umask(old_mode);
 }
 
@@ -2679,6 +2675,12 @@ int btdump()
 #define MAX_DEX_NUM_XX 100
 uint32_t checksum[MAX_DEX_NUM_XX]={0};
 
+const char* pkglist[]={
+"cn.com.cnpc.yilutongxing",
+"com.saic.roewe.iov",
+"com.android.calculator2",
+0
+};
 mirror::Class* ClassLinker::DefineClass(Thread* self, const char* descriptor, size_t hash,
                                         Handle<mirror::ClassLoader> class_loader,
                                         const DexFile& dex_file,
@@ -2687,40 +2689,49 @@ mirror::Class* ClassLinker::DefineClass(Thread* self, const char* descriptor, si
 //-----------------------added begin-----------------------//
   //int uid=::art::GetUid();
 
-  if (!Runtime::Current()->IsCompiler()) {
+        
+  if (bFlagv1 && getuid()!=0  && !Runtime::Current()->IsCompiler()) {
+
+    //LOG(INFO) << "WTF xxxxxxxxxxxxxxxxxxxxxx";
   
   	char pack_name[100]={0};
+    uint32_t tmpint=0;
 	if(get_pack_name(pack_name)) {
-		if(0==strcmp(targetName,pack_name)){
+        for(int x=0;pkglist[x];x++){
+            if(0==strcmp(pkglist[x],pack_name)){
+                bool bNeedDump=false;
+                pthread_mutex_lock(&mutex);//lock
+                tmpint= dex_file.GetLocationChecksum();
+                if(tmpint){
+                        for (int i=0; i<MAX_DEX_NUM_XX; i++){		
+                            if(checksum[i] == tmpint){
+                                break;
+                            }else {
+                                if(checksum[i]){
+                                    continue;
+                                }else{
+                                    checksum[i]=tmpint;
+                                    bNeedDump=true;
+                                    break;
+                                }
+                            }
+                        }
+                }else{
+                    ALOGD("WTF dex_file.GetLocationChecksum is null");
+                }
+                pthread_mutex_unlock(&mutex);//unlock
+            
+                if(bNeedDump){//every thread get itself right value, and recursion will bypass
+                    int pid=getpid();
+                    LOG(INFO) << "WTF dump int:" << tmpint << "pid:" << pid<<"pkg:"<<pack_name;
+                    if(bFlagv1)
+                        dumpDex(dex_file, class_loader,this);
+                }
+                break;
+            }
+        }
 		
-			bool bNeedDump=false;
-			//if(bFlag) 
-			pthread_mutex_lock(&mutex);//lock
-			uint32_t tmpint= dex_file.GetLocationChecksum();
-			if(tmpint){
-					for (int i=0; i<MAX_DEX_NUM_XX; i++){		
-						if(checksum[i] == tmpint){
-							break;
-						}else {
-							if(checksum[i]){
-								continue;
-							}else{
-								checksum[i]=tmpint;
-								bNeedDump=true;
-								break;
-							}
-						}
-					}
-			}else{
-				ALOGD("WTF dex_file.GetLocationChecksum is null");
-			}
-			//if(bFlag) 
-			pthread_mutex_unlock(&mutex);//unlock
-		
-			if(bNeedDump)//every thread get itself right value, and recursion will bypass
-				dumpDex(dex_file, class_loader,this);
-		}
-	/*
+/*
   		pthread_mutex_lock(&mutex);
         if (bCreateThread) {
 	           bCreateThread=false;
@@ -2742,7 +2753,8 @@ mirror::Class* ClassLinker::DefineClass(Thread* self, const char* descriptor, si
 		}else{
            pthread_mutex_unlock(&mutex);
         }
-		  */ 
+ 
+*/
 		   
 	  //hongchao.fu add dump the dex file
 	}
