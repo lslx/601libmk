@@ -104,12 +104,6 @@ class DexFile {
     DISALLOW_COPY_AND_ASSIGN(Header);
   };
 
-//----
-  uint32_t class_defs_off_;
-
-  uint32_t data_size_;
-
-  uint32_t data_off_;
    
   // Map item type codes.
   enum {
@@ -1057,6 +1051,13 @@ class DexFile {
   // pointer to the OatDexFile it was loaded from. Otherwise oat_dex_file_ is
   // null.
   const OatDexFile* oat_dex_file_;
+
+
+//----
+ public:
+  uint32_t class_defs_off_;
+  uint32_t data_size_;
+  uint32_t data_off_;
 };
 
 struct DexFileReference {
